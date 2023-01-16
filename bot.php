@@ -742,11 +742,21 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                     money_log( "А у {$data['users'][$to_uid]['first_name']} ($to_uid) баланс {$data['users'][$to_uid]['balance']} dash" );
                     money_log( "OK" );
                     $sum = $sum * 1000;
+                    // В общий чат
                     $r = telegram(
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
                             "text"    => "Отправлено {$sum} mdash {$inusd}",
+                        ]
+                    );
+                    // Юзеру которому зачислено
+                    $balance_usd  = round( $data["users"][$to_uid]["balance"] * $data[ $curr ]["price"], 2 );
+                    $r = telegram(
+                        "sendMessage",
+                        [
+                            "chat_id" => $data["users"][$to_uid]["chat"],
+                            "text"    => "{$data['users'][$uid]['first_name']} прислал вам {$sum} mdash {$inusd}. Баланс: {$data['users'][$to_uid]['balance']} ({$balance_usd} $)",
                         ]
                     );
                 } else {
