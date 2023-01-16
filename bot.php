@@ -727,15 +727,15 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                     exit;
                 }
 
-                $do = $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"];
+                $do = round( $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"], 8 );;
 
                 money_log( "{$data['users'][$uid]['first_name']} ($uid) с балансом {$data['users'][$uid]['balance']} dash" );
-                money_log( "отправляет {$sum} {$cur} {$inusd} {$data['users'][$to_uid]['first_name']} ($to_uid) с балансом {$data['users'][$to_uid]['balance']} dash" );
+                money_log( "отправляет {$sum} {$cur} {$inusd} пользователю {$data['users'][$to_uid]['first_name']} ($to_uid) с балансом {$data['users'][$to_uid]['balance']} dash" );
                 
                 $data["users"][ $uid ]["balance"]    = round( $data["users"][ $uid ]["balance"]    - $sum, 8 );
                 $data["users"][ $to_uid ]["balance"] = round( $data["users"][ $to_uid ]["balance"] + $sum, 8 );
 
-                $posle = $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"];
+                $posle = round( $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"], 8 );;
 
                 if ( $do === $posle ) {
                     save_data();
