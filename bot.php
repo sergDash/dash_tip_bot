@@ -352,25 +352,25 @@ if ( isset( $argv ) ) {
 
                 $old_balance = $data["users"][ $uid ]["balance"];
                 // Добавляем ему баланса 
-                $data["users"][ $uid ]["balance"] += $tx["amount"];
-                $data["users"][ $uid ]["txid"]     = $tx["txid"];
+                $data["users"][ $uid ]["balance"] = round( $data["users"][ $uid ]["balance"] + $tx["amount"], 8 );
+                $data["users"][ $uid ]["txid"]    = $tx["txid"];
                 save_data();
                 $uname   = $data["users"][ $uid ]["first_name"];
                 money_log( "{$uname} ({$uid}) с балансом {$old_balance} dash, пополнил баланс на {$tx["amount"]} dash и имеет {$data['users'][$uid]['balance']} dash" );
                 money_log( "OK" );
 
                 // Уведомляем о поступлении
-                if ( isset( $data["users"][ $uid ]["chat"] ) ) {
+                update_curr();
 
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $data["users"][ $uid ]["chat"],
-                            "text"    => "Баланс пополнен на {$tx["amount"]} dash.\nБаланс: {$data["users"][ $uid ]["balance"]} dash",
-                        ]
-                    );
+                $balance = balance_format( $data["users"][ $uid ]["balance"] );
 
-                }
+                $r = telegram(
+                    "sendMessage",
+                    [
+                        "chat_id" => $data["users"][ $uid ]["chat"],
+                        "text"    => "Баланс пополнен на {$tx["amount"]} dash.\n{$balance}",
+                    ]
+                );
 
             }
 
