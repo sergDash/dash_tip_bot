@@ -505,7 +505,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                 if ( ! isset( $args[1] ) ) {
                     exit;
                 }
-                if ( preg_match( "/[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{34}/", $args[1] ) ) {
+                if ( preg_match( "/[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{25,34}/", $args[1] ) ) {
 
                     $data["users"][ $uid ]["output"] = $args[1];
                     save_data();
