@@ -319,6 +319,7 @@ if ( isset( $argv ) ) {
                 save_data();
                 $uname   = $data["users"][ $uid ]["first_name"];
                 money_log( "{$uname} ({$uid}) пополнил баланс на {$tx["amount"]} dash и имеет {$data['users'][$uid]['balance']} dash" );
+                money_log( "OK" );
 
                 // Уведомляем о поступлении
                 if ( isset( $data["users"][ $uid ]["chat"] ) ) {
@@ -703,14 +704,14 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                 $sum = $res[1];
                 $cur = $res[3];
 
+                update_dashusd();
                 if ( $cur === "$" ) {
                     $inusd = "({$sum} $)";
-                    update_dashusd();
                     $sum = round( $sum / $data[ $curr ]["price"], 8 );
                     $cur = "dash";
                 } else {
-                    $inusd = "";
                     $sum = round( $sum / 1000, 8 );
+                    $inusd = "(" . round( $sum * $data[ $curr ]["price"], 2 ) . " $)";
                     $cur = "dash";
                 }
 
