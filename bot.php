@@ -313,12 +313,13 @@ if ( isset( $argv ) ) {
 
             if ( ! $already_added && ( $is_confirm || $nois_confirm ) ) {
 
+                $old_balance = $data["users"][ $uid ]["balance"];
                 // Добавляем ему баланса 
                 $data["users"][ $uid ]["balance"] += $tx["amount"];
                 $data["users"][ $uid ]["txid"]     = $tx["txid"];
                 save_data();
                 $uname   = $data["users"][ $uid ]["first_name"];
-                money_log( "{$uname} ({$uid}) пополнил баланс на {$tx["amount"]} dash и имеет {$data['users'][$uid]['balance']} dash" );
+                money_log( "{$uname} ({$uid}) с балансом {$old_balance} dash, пополнил баланс на {$tx["amount"]} dash и имеет {$data['users'][$uid]['balance']} dash" );
                 money_log( "OK" );
 
                 // Уведомляем о поступлении
@@ -332,7 +333,7 @@ if ( isset( $argv ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $data["users"][ $uid ]["chat"],
-                            "text"    => "Баланс пополнен. У вас {$dash} dash ({$usd} usd)",
+                            "text"    => "Баланс пополнен на {$tx["amount"]} dash. У вас {$dash} dash ({$usd} $)",
                         ]
                     );
 
