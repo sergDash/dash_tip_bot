@@ -225,24 +225,61 @@ function money_log( $str ) {
 
 
 // Функция обновления курса
-$curr = "dashusd";
-function update_dashusd() {
-    global $data, $curr;
-    if ( ! isset( $data[$curr]["date"] ) ) {
-        $data[$curr]["date"] = 0;
+$currencies = [ "usd", "rub", "uah", "dash", "mdash" ];
+function update_curr() {
+    global $data, $currencies;
+    if ( ! isset( $data["update_curr"] ) ) {
+        $data["update_curr"] = 0;
     }
-    if ( $data[$curr]["date"] < time() - 5*60 ) {
-        $json = file_get_contents( "https://rates2.dashretail.org/rates?source=dashretail&symbol={$curr}" );
+    if ( $data["update_curr"] < time() - 5*60 ) {
+        $curs = [];
+        foreach( $currencies as $cur ) {
+            if ( $cur !== "dash" && $cur !== "mdash" ) {
+                $curs[] = "dash" . $cur;
+            }
+        }
+        $curs = implode( ",", $curs );
+        $json = file_get_contents( "https://rates2.dashretail.org/rates?source=dashretail&symbol={$curs}" );
         $arr = json_decode( $json, true );
         if ( is_array( $arr ) ) {
-            $data[$curr] = [
-                "price" => $arr[0]["price"],
-                "date" => time(),
-            ];
+            foreach( $arr as $cur ) {
+                $cur_lc = strtolower( $cur["quoteCurrency"] );
+                $data["curr"][ $cur_lc ] = $cur;
+                
+                // Сохраняем совместимость пока
+                if ( $cur_lc === "usd" ) {
+                    $data["dashusd"] = [
+                        "price" => $data["curr"][ $cur_lc ]["price"],
+                        "date" => time(),
+                    ];
+                }
+            }
+            $data["curr"]["dash"]["price"] = 1;
+            $data["curr"]["mdash"]["price"] = 1000;
+            $data["update_curr"] = time();
             // Сохраняем данные
             save_data();
         }
     }
+}
+
+
+function balance_format( $dash ) {
+    global $data, $currencies;
+
+    if ( $dash == 0 ) {
+        $dash_f = "0";
+    } else {
+        $dash_f = rtrim( number_format( $dash, 8, ".", "" ), "0" );
+    }
+
+    foreach( $currencies as $cur ) {
+        if ( $cur !== "dash" && $cur !== "mdash" ) {
+            $inval = round( $dash * $data["curr"][ $cur ]["price"], 2 );
+            $a[] = "{$inval} {$cur}";
+        }
+    }
+    return "Баланс: {$dash_f} dash\n" . implode( ", ", $a );
 }
 
 
@@ -324,16 +361,12 @@ if ( isset( $argv ) ) {
 
                 // Уведомляем о поступлении
                 if ( isset( $data["users"][ $uid ]["chat"] ) ) {
-                    
-                    update_dashusd();
-                    $dash = $data["users"][ $uid ]["balance"];
-                    $usd  = round( $dash * $data[ $curr ]["price"], 2 );
 
                     $r = telegram(
                         "sendMessage",
                         [
                             "chat_id" => $data["users"][ $uid ]["chat"],
-                            "text"    => "Баланс пополнен на {$tx["amount"]} dash. У вас {$dash} dash ({$usd} $)",
+                            "text"    => "Баланс пополнен на {$tx["amount"]} dash.\nБаланс: {$data["users"][ $uid ]["balance"]} dash",
                         ]
                     );
 
@@ -434,6 +467,16 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                 }
                 //debug_log( $data["users"], '$users = ' );
 
+                if ( isset( $data["users"][ $uid ]["output"] ) ) {
+                    $output_addr = "Вы установили адрес для вывода средств:\n{$data['users'][$uid]['output']}";
+                } else {
+                    $output_addr = "Вы не установили адрес для вывода средств.";
+                }
+
+                update_curr();
+
+                $balance = balance_format( $data["users"][ $uid ]["balance"] );
+
                 $user_name = $input["message"]["from"]["first_name"];
                 $start_msg = "Привет, {$user_name}!
 
@@ -446,9 +489,11 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 
 /withdrawal 0.2 - вывести указанную сумму на адрес своего кошелька
 
-/tip - ответом на сообщение - задонатить 1$
-/tip 2$ - отправить 2 доллара
-/tip 20 - отправить 20 mdash
+/dashtip 2 usd      - отправить 2 доллара
+/dashtip 3 rub      - отправить 3 рубля
+/dashtip 4 uah      - отправить 4 гривны
+/dashtip 0.003 dash - отправить в дешах
+/dashtip 3 mdash    - тысячные деша, т.е. тоже 0.003
 
 /balance - узнать баланс
 
@@ -456,33 +501,11 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 {$data['users'][$uid]['input']}
 Это ваш индивидуальный адрес для пополнения счета.
 
-Копируйте все сообщение, мобильный dash-кошелек умеет распознавать адреса в сообщениях и возмет первый из них для перевода на него.";
+Копируйте все сообщение, мобильный dash-кошелек умеет распознавать адреса в сообщениях и возмет первый из них для перевода на него.
 
-                if ( isset( $data["users"][ $uid ]["output"] ) ) {
+{$output_addr}
 
-                    $start_msg .= "
-
-Вы установили адрес для вывода средств:
-{$data['users'][$uid]['output']}";
-
-                } else {
-
-                    $start_msg .= "
-
-Вы не установили адрес для вывода средств.";
-
-                }
-
-                if ( $data["users"][ $uid ]["balance"] > 0 ) {
-
-                    update_dashusd();
-                    $dash = $data["users"][ $uid ]["balance"];
-                    $usd  = round( $dash * $data[ $curr ]["price"], 2 );
-                    $start_msg .= "
-
-Баланс: {$dash} dash ({$usd} $)";
-
-                }
+{$balance}";
 
                 $r = telegram(
                     "sendMessage",
@@ -496,15 +519,15 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 
             case "/balance":
 
-                update_dashusd();
-                $dash = round( $data["users"][ $uid ]["balance"], 8 );
-                $usd  = round( $dash * $data[ $curr ]["price"], 2 );
+                update_curr();
+
+                $balance = balance_format( $data["users"][ $uid ]["balance"] );
 
                 $r = telegram(
                     "sendMessage",
                     [
                         "chat_id" => $chat_id,
-                        "text"    => "У вас на балансе {$dash} dash ({$usd} usd)",
+                        "text"    => $balance,
                     ]
                 );
                 
@@ -625,7 +648,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
     // Секция команд в групповом чате
     } elseif ( isset( $input["message"]["text"] ) 
             && isset( $input["message"]["reply_to_message"] )
-            && substr( $input["message"]["text"], 0, 4 ) === "/tip" ) {
+            && substr( $input["message"]["text"], 0, 8 ) === "/dashtip" ) {
         
         //debug_log( $input, 'Telegram $input = ' );
 
@@ -656,11 +679,11 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
             exit;
         }
         
-        $args = preg_split( "/\s+/", $input["message"]["text"], 2 );
+        $args = preg_split( "/\s+/", $input["message"]["text"] );
 
         switch( $args[0] ) {
 
-            case "/tip":
+            case "/dashtip":
                 // Проверить что отправляющий зарегистрирован
                 if ( ! isset( $data["users"][ $uid ]["balance"] ) ) {
                     $r = telegram(
@@ -685,13 +708,20 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                     exit;
                 }
 
-                // По умолчанию донат в 1$
-                if ( ! isset( $args[1] ) ) {
-                    $args[1] = "1$";
+                // Количество параметров
+                if ( count( $args ) < 3 ) {
+                    $r = telegram(
+                        "sendMessage",
+                        [
+                            "chat_id" => $chat_id,
+                            "text"    => "Укажите сумму и валюту через пробел. Например, 10 usd.",
+                        ]
+                    );
+                    exit;
                 }
 
                 // Распознаем сумму
-                if ( ! preg_match( "/^(\d+(\.\d+)?)(\\\$?)(.*)\$/", $args[1], $res ) ) {
+                if ( ! preg_match( "/^(\d+(\.\d+)?)\$/", $args[1] ) ) {
                     $r = telegram(
                         "sendMessage",
                         [
@@ -702,18 +732,27 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                     exit;
                 }
 
-                $sum = $res[1];
-                $cur = $res[3];
+                $sum = $args[1];
+                $cur = $args[2];
 
-                update_dashusd();
-                if ( $cur === "$" ) {
-                    $inusd = "({$sum} $)";
-                    $sum = round( $sum / $data[ $curr ]["price"], 8 );
-                    $cur = "dash";
+                if ( ! in_array( $cur, $currencies ) ) {
+                    $r = telegram(
+                        "sendMessage",
+                        [
+                            "chat_id" => $chat_id,
+                            "text"    => "Не поддерживаемая валюта: {$cur}",
+                        ]
+                    );
+                    exit;
+                }
+
+                update_curr();
+
+                $sum = round( $sum / $data["curr"][ $cur ]["price"], 8 );
+                if ( $cur !== "dash" && $cur !== "mdash" ) {
+                    $incur = " (" . round( $sum * $data["curr"][ $cur ]["price"], 2) . " {$cur})";
                 } else {
-                    $sum = round( $sum / 1000, 8 );
-                    $inusd = "(" . round( $sum * $data[ $curr ]["price"], 2 ) . " $)";
-                    $cur = "dash";
+                    $incur = "";
                 }
 
                 if ( $data["users"][ $uid ]["balance"] < $sum ) {
@@ -727,10 +766,21 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                     exit;
                 }
 
+                /*
+                $r = telegram(
+                    "sendMessage",
+                    [
+                        "chat_id" => $chat_id,
+                        "text"    => "Идут работы. Команда не выполняется. {$sum} dash $incur",
+                    ]
+                );
+                exit;
+                */
+
                 $do = round( $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"], 8 );;
 
                 money_log( "{$data['users'][$uid]['first_name']} ($uid) с балансом {$data['users'][$uid]['balance']} dash" );
-                money_log( "отправляет {$sum} {$cur} {$inusd} пользователю {$data['users'][$to_uid]['first_name']} ($to_uid) с балансом {$data['users'][$to_uid]['balance']} dash" );
+                money_log( "отправляет {$sum} {$cur}{$incur} пользователю {$data['users'][$to_uid]['first_name']} ($to_uid) с балансом {$data['users'][$to_uid]['balance']} dash" );
                 
                 $data["users"][ $uid ]["balance"]    = round( $data["users"][ $uid ]["balance"]    - $sum, 8 );
                 $data["users"][ $to_uid ]["balance"] = round( $data["users"][ $to_uid ]["balance"] + $sum, 8 );
@@ -742,31 +792,33 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                     money_log( "Теперь у {$data['users'][$uid]['first_name']} ($uid) баланс {$data['users'][$uid]['balance']} dash" );
                     money_log( "А у {$data['users'][$to_uid]['first_name']} ($to_uid) баланс {$data['users'][$to_uid]['balance']} dash" );
                     money_log( "OK" );
-                    $sum = $sum * 1000;
+
                     // В общий чат
                     $r = telegram(
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
-                            "text"    => "Отправлено {$sum} mdash {$inusd}",
+                            "text"    => "Отправлено {$sum} dash {$incur} от {$data['users'][$uid]['first_name']} к {$data['users'][$to_uid]['first_name']}",
                         ]
                     );
+
                     // Юзеру которому зачислено
-                    $balance_usd  = round( $data["users"][$to_uid]["balance"] * $data[ $curr ]["price"], 2 );
+                    $balance = balance_format( $data["users"][ $to_uid ]["balance"] );
                     $r = telegram(
                         "sendMessage",
                         [
                             "chat_id" => $data["users"][$to_uid]["chat"],
-                            "text"    => "{$data['users'][$uid]['first_name']} прислал вам {$sum} mdash {$inusd}. Баланс: {$data['users'][$to_uid]['balance']} dash ({$balance_usd} $)",
+                            "text"    => "{$data['users'][$uid]['first_name']} прислал вам {$sum} dash{$incur}.\n$balance",
                         ]
                     );
+
                     // Юзеру который отправил
-                    $balance_usd  = round( $data["users"][$uid]["balance"] * $data[ $curr ]["price"], 2 );
+                    $balance = balance_format( $data["users"][ $uid ]["balance"] );
                     $r = telegram(
                         "sendMessage",
                         [
                             "chat_id" => $data["users"][$uid]["chat"],
-                            "text"    => "Вы отправили {$data['users'][$to_uid]['first_name']} {$sum} mdash {$inusd}. Баланс: {$data['users'][$uid]['balance']} dash ({$balance_usd} $)",
+                            "text"    => "Вы отправили {$data['users'][$to_uid]['first_name']} {$sum} dash{$incur}.\n$balance",
                         ]
                     );
                 } else {
