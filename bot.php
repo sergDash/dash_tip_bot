@@ -190,11 +190,16 @@ if ( file_exists( $data_php ) && $fp = fopen( $data_php, "r" ) ) {
 // А это функция для сброса состояния на диск
 function save_data() {
     global $data;
-    // Она тоже блокирует файл чтобы предотвратить одновременную запись
     $data_php = __DIR__ . "/data.php";
     $backup   = __DIR__ . "/backups/data." . microtime( true ) . ".php";
-    copy( $data_php, $backup );
+    if ( file_exists( $data_php ) && $fp = fopen( $data_php, "r" ) ) {
+        flock( $fp, LOCK_SH );
+        copy( $data_php, $backup );
+        flock( $fp, LOCK_UN );
+        fclose( $fp );
+    }
     $export = '<?php $data = ' . var_export( $data, true) . ";\n";
+    // С блокировкой чтобы предотвратить одновременную запись
     $r = file_put_contents( $data_php, $export, LOCK_EX );
     return $r;
 }
