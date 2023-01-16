@@ -288,21 +288,23 @@ if ( isset( $argv ) ) {
                 exit;
             }
 
+            // Условия для зачисления
+            // Именно такие, потому что аж 4 уведомления может быть
+            $is_confirm   = $tx["instantlock"] === true  && $tx["confirmations"] === 0;
+            $nois_confirm = $tx["instantlock"] === false && $tx["confirmations"] === 1;
+
             // Извлекаем адрес на который пришел перевод
             $addr = $tx["details"][0]["address"];
-            if ( ! isset( $data["inputs"][ $addr ] ) ) {
+            if ( ! isset( $data["inputs"][ $addr ] ) && ( $is_confirm || $nois_confirm ) ) {
                 money_log( "Неопознанное поступление на адрес {$addr} {$tx["amount"]} dash" );
+                debug_log( $tx, '$tx = ' );
                 exit;
             }
 
             // Определяем id юзера
             $uid  = $data["inputs"][ $addr ];
             
-            // Условия для зачисления
-            // Именно такие, потому что аж 4 уведомления может быть
-            $is_confirm      = $tx["instantlock"] === true  && $tx["confirmations"] === 0;
-            $nois_confirm    = $tx["instantlock"] === false && $tx["confirmations"] > 0;
-            $already_added   = $tx["txid"]        === $data["users"][ $uid ]["txid"];
+            $already_added = $tx["txid"] === $data["users"][ $uid ]["txid"];
 
             if ( ! $already_added && ( $is_confirm || $nois_confirm ) ) {
 
