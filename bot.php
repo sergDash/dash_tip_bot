@@ -756,7 +756,16 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $data["users"][$to_uid]["chat"],
-                            "text"    => "{$data['users'][$uid]['first_name']} прислал вам {$sum} mdash {$inusd}. Баланс: {$data['users'][$to_uid]['balance']} ({$balance_usd} $)",
+                            "text"    => "{$data['users'][$uid]['first_name']} прислал вам {$sum} mdash {$inusd}. Баланс: {$data['users'][$to_uid]['balance']} dash ({$balance_usd} $)",
+                        ]
+                    );
+                    // Юзеру который отправил
+                    $balance_usd  = round( $data["users"][$uid]["balance"] * $data[ $curr ]["price"], 2 );
+                    $r = telegram(
+                        "sendMessage",
+                        [
+                            "chat_id" => $data["users"][$uid]["chat"],
+                            "text"    => "Вы отправили {$data['users'][$to_uid]['first_name']} {$sum} mdash {$inusd}. Баланс: {$data['users'][$uid]['balance']} dash ({$balance_usd} $)",
                         ]
                     );
                 } else {
