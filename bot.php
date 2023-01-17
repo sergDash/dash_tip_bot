@@ -779,7 +779,6 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 
         $uid     = $input["message"]["from"]["id"];
         $uname   = $input["message"]["from"]["first_name"];
-        $to_uid  = $input["message"]["reply_to_message"]["from"]["id"];
         $chat_id = $input["message"]["chat"]["id"];
 
         // Переучет
@@ -815,12 +814,15 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                     exit;
                 }
 
+                $to_uid  = $input["message"]["reply_to_message"]["from"]["id"];
+
                 // Проверить что отправляющий зарегистрирован
                 if ( ! isset( $data["users"][ $uid ]["balance"] ) ) {
                     $r = telegram(
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Для отправления переводов пользователь должен начать общение с ботом {$bot['myname']} и иметь средства на балансе.",
                         ]
                     );
@@ -833,6 +835,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Перевод отклонен. Для получения переводов пользователь должен начать общение с ботом {$bot['myname']}",
                         ]
                     );
@@ -845,6 +848,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Укажите сумму и валюту через пробел. Например, 10 usd.",
                         ]
                     );
@@ -857,6 +861,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Не распознана сумма: {$args[1]}",
                         ]
                     );
@@ -871,6 +876,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Не поддерживаемая валюта: {$cur}",
                         ]
                     );
@@ -891,6 +897,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Не хватает средств на балансе.",
                         ]
                     );
@@ -902,6 +909,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                     "sendMessage",
                     [
                         "chat_id" => $chat_id,
+                        "reply_to_message_id" => $input["message"]["message_id"],
                         "text"    => "Идут работы. Команда не выполняется. {$sum} dash $incur",
                     ]
                 );
@@ -929,6 +937,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Отправлено {$sum} dash {$incur} от {$data['users'][$uid]['first_name']} к {$data['users'][$to_uid]['first_name']}",
                         ]
                     );
@@ -958,6 +967,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Не отправлено. Беда с округлениями.",
                         ]
                     );
@@ -974,6 +984,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Неверное число аргументов.",
                         ]
                     );
@@ -986,6 +997,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Не распознана сумма: {$args[1]}",
                         ]
                     );
@@ -1001,6 +1013,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Не поддерживаемая валюта: {$cur}",
                         ]
                     );
@@ -1023,6 +1036,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Не хватает средств на балансе.",
                         ]
                     );
@@ -1034,6 +1048,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
+                            "reply_to_message_id" => $input["message"]["message_id"],
                             "text"    => "Это не похоже на адрес",
                         ]
                     );
@@ -1075,8 +1090,9 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                 $r = telegram(
                     "sendMessage",
                     [
-                        "chat_id" => $chat_id,
-                        "text"    => $msg,
+                        "chat_id"             => $chat_id,
+                        "reply_to_message_id" => $input["message"]["message_id"],
+                        "text"                => $msg,
                     ]
                 );
 
