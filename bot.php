@@ -489,12 +489,14 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 /myaddr XkH6uBT9aG... - добавить в бота адрес своего кошелька для вывода средств
 
 /withdrawal 0.2 - вывести указанную сумму на адрес своего кошелька
+/withdrawal all - вывести все
 
 /dashtip 2 usd      - отправить 2 доллара
 /dashtip 3 rub      - отправить 3 рубля
 /dashtip 4 uah      - отправить 4 гривны
 /dashtip 0.003 dash - отправить в дешах
 /dashtip 3 mdash    - тысячные деша, т.е. тоже 0.003
+/dashtip all        - перечислить все
 
 /balance - узнать баланс
 
@@ -565,7 +567,6 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
             case "/withdrawal":
 
                 // Ошибка адреса для вывода
-                // Это когда отправили не зарегистрированному пользователю, например
                 if ( ! isset( $data["users"][ $uid ]["output"] ) ) {
                     $r = telegram(
                         "sendMessage",
@@ -575,6 +576,10 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         ]
                     );
                     exit;
+                }
+
+                if ( $args[1] === "all" ) {
+                    $args[1] = $data['users'][$uid]['balance'];
                 }
 
                 if ( isset( $args[1] ) && is_numeric( $args[1] ) ) {
@@ -840,6 +845,11 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         ]
                     );
                     exit;
+                }
+
+                if ( $args[1] === "all" ) {
+                    $args[1] = $data['users'][$uid]['balance'];
+                    $args[2] = "dash";
                 }
 
                 // Количество параметров
