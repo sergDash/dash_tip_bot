@@ -740,7 +740,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         save_data();
 
                         $msg = "Отправлено";
-                        money_log( "{$uname} ({$uid}): Отправлено /dashsend {-$sum} dash {$addr}" );
+                        money_log( "{$uname} ({$uid}): Отправлено /dashsend {$sum} dash {$addr}" );
                         money_log( "У {$uname} ({$uid}) баланс {$data['users'][$uid]['balance']} dash" );
                         money_log( $msg );
                     }
@@ -919,7 +919,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                 $do = round( $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"], 8 );;
 
                 money_log( "{$data['users'][$uid]['first_name']} ($uid) с балансом {$data['users'][$uid]['balance']} dash" );
-                money_log( "отправляет {$sum} {$cur}{$incur} пользователю {$data['users'][$to_uid]['first_name']} ($to_uid) с балансом {$data['users'][$to_uid]['balance']} dash" );
+                money_log( "отправляет {$sum} dash{$incur} пользователю {$data['users'][$to_uid]['first_name']} ($to_uid) с балансом {$data['users'][$to_uid]['balance']} dash" );
                 
                 $data["users"][ $uid ]["balance"]    = round( $data["users"][ $uid ]["balance"]    - $sum, 8 );
                 $data["users"][ $to_uid ]["balance"] = round( $data["users"][ $to_uid ]["balance"] + $sum, 8 );
@@ -1078,7 +1078,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         save_data();
 
                         $msg = "Отправлено";
-                        money_log( "{$uname} ({$uid}): Отправлено /dashsend {-$sum} dash {$addr}" );
+                        money_log( "{$uname} ({$uid}): Отправлено /dashsend {$sum} dash {$addr}" );
                         money_log( "У {$uname} ({$uid}) баланс {$data['users'][$uid]['balance']} dash" );
                         money_log( $msg );
                     }
