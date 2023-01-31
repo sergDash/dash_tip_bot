@@ -469,7 +469,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
             break;
 
             case "/warn":
-                $args = preg_split( "/\s+/", $input["message"]["text"], 1 );
+                $args = preg_split( "/\s+/", $input["message"]["text"], 2 );
                 if ( $uid === $bot["admin_uid"] ) {
                     $warned = 0;
                     foreach( $data["users"] as $user ) {
@@ -488,7 +488,7 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                         "sendMessage",
                         [
                             "chat_id" => $chat_id,
-                            "text"    => "Предупреждено {$warned} пользователей.",
+                            "text"    => "Установите адрес вывода, чтобы в случае закрытия бота монеты попали на ваш адрес. {$args[1]}\n\nПредупреждено {$warned} пользователей.",
                         ]
                     );
                 }
