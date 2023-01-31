@@ -69,6 +69,7 @@
         "rpcpassword" => "password1",
         "pereuchet"   => false,
         "myname"      => "@dashtipbot",
+        "admin_uid"   => 1234567890,
     );
 
 
@@ -78,6 +79,10 @@
     Зайдите на свой сайт по адресу https://bot.site.ru/bot.php?cmd=install
     Для удаления хука зайдите по адресу https://bot.site.ru/bot.php?cmd=uninstall
 
+    Команды админа:
+    /info - показывает сколько юзеров, сколькие установили адрес вывода, сколько не установили адрес вывода но имеют средства
+    /warn [message] - предупредить нерациональных пользователей, чтобы установили адреса вывода
+    /eject - принудительно выбросить монеты всем на адреса вывода
 */
 
 
@@ -440,6 +445,100 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
         $args = preg_split( "/\s+/", $input["message"]["text"] );
 
         switch( $args[0] ) {
+
+            case "/info":
+                if ( $uid === $bot["admin_uid"] ) {
+                    $users_count = count( $data["users"] );
+                    $irrational_users = 0;
+                    $sum = 0;
+                    foreach( $data["users"] as $user ) {
+                        if ( $user["balance"] > 0 && ! isset( $user["output"] ) ) {
+                            $irrational_users++;
+                            $sum = round( $sum + $user["balance"], 8 );
+                        }
+                    }
+                    $report = "users: {$users_count}, irrational users: {$irrational_users}, sum: {$sum}";
+                    $r = telegram(
+                        "sendMessage",
+                        [
+                            "chat_id" => $chat_id,
+                            "text"    => $report,
+                        ]
+                    );
+                }
+            break;
+
+            case "/warn":
+                $args = preg_split( "/\s+/", $input["message"]["text"], 1 );
+                if ( $uid === $bot["admin_uid"] ) {
+                    $warned = 0;
+                    foreach( $data["users"] as $user ) {
+                        if ( $user["balance"] > 0 && ! isset( $user["output"] ) ) {
+                            $r = telegram(
+                                "sendMessage",
+                                [
+                                    "chat_id" => $user["chat"],
+                                    "text"    => "Установите адрес вывода, чтобы в случае закрытия бота монеты попали на ваш адрес. {$args[1]}",
+                                    ]
+                            );
+                            $warned++;
+                        }
+                    }
+                    $r = telegram(
+                        "sendMessage",
+                        [
+                            "chat_id" => $chat_id,
+                            "text"    => "Предупреждено {$warned} пользователей.",
+                        ]
+                    );
+                }
+            break;
+
+            case "/eject":
+                if ( $uid === $bot["admin_uid"] ) {
+                    $ejected = 0;
+                    $errors  = 0;
+                    foreach( $data["users"] as $user ) {
+                        if ( $user["balance"] > 0 && isset( $user["output"] ) ) {
+                            money_log( "Принудительный вывод: {$user['first_name']} ({$user['id']}) с балансом {$user['balance']} выводит на {$user['output']} {$user['balance']} dash" );
+                            $send = rpc( [
+                                "method" => "sendtoaddress",
+                                "params" => [
+                                    $user["output"], $user["balance"], "", "", true, true
+                                ]
+                            ] );
+                            if ( $send["result"] !== NULL ) {
+                                $tx = rpc( [ "method" => "gettransaction", "params" => [ $send["result"] ] ] );
+                                if ( $tx["result"] === NULL ) {
+                                    $errors++;
+                                } else {
+                                    $sum = round( $tx["result"]["amount"] + $tx["result"]["fee"], 8 );
+                                    $data["users"][ $user["id"] ]["balance"] = round( $data["users"][ $user["id"] ]["balance"] + $sum, 8 );
+                                    save_data();
+                                    money_log( "У {$user['first_name']} ({$user['id']}) баланс {$data['users'][$user['id']]['balance']} dash" );
+                                    $r = telegram(
+                                        "sendMessage",
+                                        [
+                                            "chat_id" => $user["chat"],
+                                            "text"    => "Ваши средства выведены на ваш адрес для вывода.",
+                                            ]
+                                    );
+                                    $ejected++;
+                                }
+                            } else {
+                                $errors++;
+                            }
+                        }
+                    }
+                    $r = telegram(
+                        "sendMessage",
+                        [
+                            "chat_id" => $chat_id,
+                            "text"    => "Средства {$ejected} пользователей выведены. Ошибок: {$errors}.",
+                        ]
+                    );
+                }
+            break;
 
             case "/start":
 
