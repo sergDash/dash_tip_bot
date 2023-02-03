@@ -83,6 +83,7 @@
     /info - показывает сколько юзеров, сколькие установили адрес вывода, сколько не установили адрес вывода но имеют средства
     /warn [message] - предупредить нерациональных пользователей, чтобы установили адреса вывода
     /eject - принудительно выбросить монеты всем на адреса вывода
+    /broadcast [message] - разослать всем сообщение
 */
 
 
@@ -494,6 +495,30 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
                 }
             break;
 
+            case "/broadcast":
+                $args = preg_split( "/\s+/", $input["message"]["text"], 2 );
+                if ( $uid === $bot["admin_uid"] ) {
+                    $warned = 0;
+                    foreach( $data["users"] as $user ) {
+                        $r = telegram(
+                            "sendMessage",
+                            [
+                                "chat_id" => $user["chat"],
+                                "text"    => $args[1],
+                                ]
+                        );
+                        $warned++;
+                    }
+                    $r = telegram(
+                        "sendMessage",
+                        [
+                            "chat_id" => $chat_id,
+                            "text"    => "Разослано {$warned} пользователям.",
+                        ]
+                    );
+                }
+            break;
+
             case "/eject":
                 if ( $uid === $bot["admin_uid"] ) {
                     $ejected = 0;
@@ -596,6 +621,8 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 /dashtip 0.003 dash - отправить в дешах
 /dashtip 3 mdash    - тысячные деша, т.е. тоже 0.003
 /dashtip all        - перечислить все
+
+/dashsend 3 rub XkH6uBT9aG... - отправить на адрес
 
 /balance - узнать баланс
 
