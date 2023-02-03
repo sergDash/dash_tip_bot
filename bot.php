@@ -622,6 +622,8 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 /dashtip 3 mdash    - тысячные деша, т.е. тоже 0.003
 /dashtip all        - перечислить все
 
+/dashtip 2 rub @usernаme - отправить по username
+
 /dashsend 3 rub XkH6uBT9aG... - отправить на адрес
 
 /balance - узнать баланс
@@ -776,127 +778,13 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 
             case "/dashsend":
 
-                // Количество аргументов
-                if ( count( $args ) < 4 ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "text"    => "Неверное число аргументов.",
-                        ]
-                    );
-                    exit;
-                }
+                dashsend();
 
-                // Распознаем сумму
-                if ( ! preg_match( "/^(\d+(\.\d+)?)\$/", $args[1] ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "text"    => "Не распознана сумма: {$args[1]}",
-                        ]
-                    );
-                    exit;
-                }
+            break;
 
-                $sum  = $args[1];
-                $cur  = $args[2];
-                $addr = $args[3];
+            case "/dashtip":
 
-                if ( ! in_array( $cur, $currencies ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "text"    => "Не поддерживаемая валюта: {$cur}",
-                        ]
-                    );
-                    exit;
-                }
-
-                update_curr();
-
-                // Переводим в деши
-                $sum = round( $sum / $data["curr"][ $cur ]["price"], 8 );
-                if ( $cur !== "dash" && $cur !== "mdash" ) {
-                    $incur = " (" . round( $sum * $data["curr"][ $cur ]["price"], 2) . " {$cur})";
-                } else {
-                    $incur = "";
-                }
-
-                // Проверка счета
-                if ( $data["users"][ $uid ]["balance"] < $sum ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "text"    => "Не хватает средств на балансе.",
-                        ]
-                    );
-                    exit;
-                }
-
-                if ( ! preg_match( "/[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{25,34}/", $addr ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "text"    => "Это не похоже на адрес",
-                        ]
-                    );
-                    exit;
-                }
-
-                // Отправляем
-                $send = rpc( [
-                    "method" => "sendtoaddress",
-                    "params" => [
-                        $addr, $sum, "", "", true, true
-                    ]
-                ] );
-
-                if ( $send["result"] !== NULL ) {
-                    $tx = rpc( [ "method" => "gettransaction", "params" => [ $send["result"] ] ] );
-                    if ( $tx["result"] === NULL ) {
-                        debug_log( $tx, '$tx = ' );
-                        $msg = "Ошибка отправки. См. debug.log";
-                        money_log( $msg );
-                    } else {
-                        money_log( "У {$uname} ({$uid}) баланс {$data['users'][$uid]['balance']} dash" );
-
-                        $sum = round( $tx["result"]["amount"] + $tx["result"]["fee"], 8 );
-                        $data["users"][ $uid ]["balance"] = round( $data["users"][ $uid ]["balance"] + $sum, 8 );
-
-                        save_data();
-
-                        $msg = "Отправлено";
-                        money_log( "{$uname} ({$uid}): Отправлено /dashsend {$sum} dash {$addr}" );
-                        money_log( "У {$uname} ({$uid}) баланс {$data['users'][$uid]['balance']} dash" );
-                        money_log( $msg );
-                    }
-                } else {
-                    $msg = "RPC-ошибка";
-                    money_log( "{$uname} ({$uid}) RPC-ошибка /dashsend {$sum} {$cur} {$addr}" );
-                }
-
-                $r = telegram(
-                    "sendMessage",
-                    [
-                        "chat_id" => $chat_id,
-                        "text"    => $msg,
-                    ]
-                );
-
-                // Юзеру который отправил
-                $balance = balance_format( $data["users"][ $uid ]["balance"] );
-                $r = telegram(
-                    "sendMessage",
-                    [
-                        "chat_id" => $data["users"][$uid]["chat"],
-                        "text"    => $balance,
-                    ]
-                );
+                dashtip();
 
             break;
 
@@ -941,306 +829,13 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 
             case "/dashtip":
 
-                if ( ! isset( $input["message"]["reply_to_message"] ) ) {
-                    exit;
-                }
-
-                $to_uid  = $input["message"]["reply_to_message"]["from"]["id"];
-
-                // Проверить что отправляющий зарегистрирован
-                if ( ! isset( $data["users"][ $uid ]["balance"] ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Для отправления переводов пользователь должен начать общение с ботом {$bot['myname']} и иметь средства на балансе.",
-                        ]
-                    );
-                    exit;
-                }
-
-                // Проверить что юзер зарегистрирован
-                if ( ! isset( $data["users"][ $to_uid ]["balance"] ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Перевод отклонен. Для получения переводов пользователь должен начать общение с ботом {$bot['myname']}",
-                        ]
-                    );
-                    exit;
-                }
-
-                if ( $args[1] === "all" ) {
-                    $args[1] = $data['users'][$uid]['balance'];
-                    $args[2] = "dash";
-                }
-
-                // Количество параметров
-                if ( count( $args ) < 3 ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Укажите сумму и валюту через пробел. Например, 10 usd.",
-                        ]
-                    );
-                    exit;
-                }
-
-                // Распознаем сумму
-                if ( ! preg_match( "/^(\d+(\.\d+)?)\$/", $args[1] ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Не распознана сумма: {$args[1]}",
-                        ]
-                    );
-                    exit;
-                }
-
-                $sum = $args[1];
-                $cur = $args[2];
-
-                if ( ! in_array( $cur, $currencies ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Не поддерживаемая валюта: {$cur}",
-                        ]
-                    );
-                    exit;
-                }
-
-                update_curr();
-
-                $sum = round( $sum / $data["curr"][ $cur ]["price"], 8 );
-                if ( $cur !== "dash" && $cur !== "mdash" ) {
-                    $incur = " (" . round( $sum * $data["curr"][ $cur ]["price"], 2) . " {$cur})";
-                } else {
-                    $incur = "";
-                }
-
-                if ( $data["users"][ $uid ]["balance"] < $sum ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Не хватает средств на балансе.",
-                        ]
-                    );
-                    exit;
-                }
-
-                /*
-                $r = telegram(
-                    "sendMessage",
-                    [
-                        "chat_id" => $chat_id,
-                        "reply_to_message_id" => $input["message"]["message_id"],
-                        "text"    => "Идут работы. Команда не выполняется. {$sum} dash $incur",
-                    ]
-                );
-                exit;
-                */
-
-                $do = round( $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"], 8 );;
-
-                money_log( "{$data['users'][$uid]['first_name']} ($uid) с балансом {$data['users'][$uid]['balance']} dash" );
-                money_log( "отправляет {$sum} dash{$incur} пользователю {$data['users'][$to_uid]['first_name']} ($to_uid) с балансом {$data['users'][$to_uid]['balance']} dash" );
-                
-                $data["users"][ $uid ]["balance"]    = round( $data["users"][ $uid ]["balance"]    - $sum, 8 );
-                $data["users"][ $to_uid ]["balance"] = round( $data["users"][ $to_uid ]["balance"] + $sum, 8 );
-
-                $posle = round( $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"], 8 );;
-
-                if ( $do === $posle ) {
-                    save_data();
-                    money_log( "Теперь у {$data['users'][$uid]['first_name']} ($uid) баланс {$data['users'][$uid]['balance']} dash" );
-                    money_log( "А у {$data['users'][$to_uid]['first_name']} ($to_uid) баланс {$data['users'][$to_uid]['balance']} dash" );
-                    money_log( "OK" );
-
-                    // В общий чат
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Отправлено {$sum} dash {$incur} от {$data['users'][$uid]['first_name']} к {$data['users'][$to_uid]['first_name']}",
-                        ]
-                    );
-
-                    // Юзеру которому зачислено
-                    $balance = balance_format( $data["users"][ $to_uid ]["balance"] );
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $data["users"][$to_uid]["chat"],
-                            "text"    => "{$data['users'][$uid]['first_name']} прислал вам {$sum} dash{$incur}.\n$balance",
-                        ]
-                    );
-
-                    // Юзеру который отправил
-                    $balance = balance_format( $data["users"][ $uid ]["balance"] );
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $data["users"][$uid]["chat"],
-                            "text"    => "Вы отправили {$data['users'][$to_uid]['first_name']} {$sum} dash{$incur}.\n$balance",
-                        ]
-                    );
-                } else {
-                    money_log( "--- Не отправлено. Беда с округлениями. ---" );
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Не отправлено. Беда с округлениями.",
-                        ]
-                    );
-                }
-
+                dashtip();
 
             break;
 
             case "/dashsend":
 
-                // Количество аргументов
-                if ( count( $args ) < 4 ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Неверное число аргументов.",
-                        ]
-                    );
-                    exit;
-                }
-
-                // Распознаем сумму
-                if ( ! preg_match( "/^(\d+(\.\d+)?)\$/", $args[1] ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Не распознана сумма: {$args[1]}",
-                        ]
-                    );
-                    exit;
-                }
-
-                $sum  = $args[1];
-                $cur  = $args[2];
-                $addr = $args[3];
-
-                if ( ! in_array( $cur, $currencies ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Не поддерживаемая валюта: {$cur}",
-                        ]
-                    );
-                    exit;
-                }
-
-                update_curr();
-
-                // Переводим в деши
-                $sum = round( $sum / $data["curr"][ $cur ]["price"], 8 );
-                if ( $cur !== "dash" && $cur !== "mdash" ) {
-                    $incur = " (" . round( $sum * $data["curr"][ $cur ]["price"], 2) . " {$cur})";
-                } else {
-                    $incur = "";
-                }
-
-                // Проверка счета
-                if ( $data["users"][ $uid ]["balance"] < $sum ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Не хватает средств на балансе.",
-                        ]
-                    );
-                    exit;
-                }
-
-                if ( ! preg_match( "/[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{25,34}/", $addr ) ) {
-                    $r = telegram(
-                        "sendMessage",
-                        [
-                            "chat_id" => $chat_id,
-                            "reply_to_message_id" => $input["message"]["message_id"],
-                            "text"    => "Это не похоже на адрес",
-                        ]
-                    );
-                    exit;
-                }
-
-                // Отправляем
-                $send = rpc( [
-                    "method" => "sendtoaddress",
-                    "params" => [
-                        $addr, $sum, "", "", true, true
-                    ]
-                ] );
-
-                if ( $send["result"] !== NULL ) {
-                    $tx = rpc( [ "method" => "gettransaction", "params" => [ $send["result"] ] ] );
-                    if ( $tx["result"] === NULL ) {
-                        debug_log( $tx, '$tx = ' );
-                        $msg = "Ошибка отправки. См. debug.log";
-                        money_log( $msg );
-                    } else {
-                        money_log( "У {$uname} ({$uid}) баланс {$data['users'][$uid]['balance']} dash" );
-
-                        $sum = round( $tx["result"]["amount"] + $tx["result"]["fee"], 8 );
-                        $data["users"][ $uid ]["balance"] = round( $data["users"][ $uid ]["balance"] + $sum, 8 );
-
-                        save_data();
-
-                        $msg = "Отправлено";
-                        money_log( "{$uname} ({$uid}): Отправлено /dashsend {$sum} dash {$addr}" );
-                        money_log( "У {$uname} ({$uid}) баланс {$data['users'][$uid]['balance']} dash" );
-                        money_log( $msg );
-                    }
-                } else {
-                    $msg = "RPC-ошибка";
-                    money_log( "{$uname} ({$uid}) RPC-ошибка /dashsend {$sum} {$cur} {$addr}" );
-                }
-
-                $r = telegram(
-                    "sendMessage",
-                    [
-                        "chat_id"             => $chat_id,
-                        "reply_to_message_id" => $input["message"]["message_id"],
-                        "text"                => $msg,
-                    ]
-                );
-
-                // Юзеру который отправил
-                $balance = balance_format( $data["users"][ $uid ]["balance"] );
-                $r = telegram(
-                    "sendMessage",
-                    [
-                        "chat_id" => $data["users"][$uid]["chat"],
-                        "text"    => $balance,
-                    ]
-                );
+                dashsend();
 
             break;
 
@@ -1251,3 +846,323 @@ if ( ! empty( $input["message"] ) && isset( $input["message"]["text"] ) ) {
 }
 
 
+function dashtip() {
+    global $args, $input, $data, $bot, $uid, $uname, $chat_id, $currencies;
+
+    if ( $args[1] === "all" ) {
+        array_splice( $args, 1, 0, "" );
+        //$args[3] = $args[2];
+        $args[1] = $data['users'][$uid]['balance'];
+        $args[2] = "dash";
+    }
+
+    if ( ! isset( $input["message"]["reply_to_message"] ) ) {
+
+        foreach( $data["users"] as $user ) {
+            if ( $args[3] === "@" . $user["username"] ) {
+                $to_uid = $user["id"];
+                break;
+            }
+        }
+        if ( ! isset( $to_uid ) ) {
+            exit;
+        }
+
+    } else {
+
+        $to_uid  = $input["message"]["reply_to_message"]["from"]["id"];
+
+    }
+
+    // Проверить что отправляющий зарегистрирован
+    if ( ! isset( $data["users"][ $uid ]["balance"] ) ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Для отправления переводов пользователь должен начать общение с ботом {$bot['myname']} и иметь средства на балансе.",
+            ]
+        );
+        exit;
+    }
+
+    // Проверить что юзер зарегистрирован
+    if ( ! isset( $data["users"][ $to_uid ]["balance"] ) ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Перевод отклонен. Для получения переводов пользователь должен начать общение с ботом {$bot['myname']}",
+            ]
+        );
+        exit;
+    }
+
+    // Количество параметров
+    if ( count( $args ) < 3 ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Укажите сумму и валюту через пробел. Например, 10 usd.",
+            ]
+        );
+        exit;
+    }
+
+    // Распознаем сумму
+    if ( ! preg_match( "/^(\d+(\.\d+)?)\$/", $args[1] ) ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Не распознана сумма: {$args[1]}",
+            ]
+        );
+        exit;
+    }
+
+    $sum = $args[1];
+    $cur = $args[2];
+
+    if ( ! in_array( $cur, $currencies ) ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Не поддерживаемая валюта: {$cur}",
+            ]
+        );
+        exit;
+    }
+
+    update_curr();
+
+    $sum = round( $sum / $data["curr"][ $cur ]["price"], 8 );
+    if ( $cur !== "dash" && $cur !== "mdash" ) {
+        $incur = " (" . round( $sum * $data["curr"][ $cur ]["price"], 2) . " {$cur})";
+    } else {
+        $incur = "";
+    }
+
+    if ( $data["users"][ $uid ]["balance"] < $sum ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Не хватает средств на балансе.",
+            ]
+        );
+        exit;
+    }
+
+    /*
+    $r = telegram(
+        "sendMessage",
+        [
+            "chat_id" => $chat_id,
+            "reply_to_message_id" => $input["message"]["message_id"],
+            "text"    => "Идут работы. Команда не выполняется. {$sum} dash $incur",
+        ]
+    );
+    exit;
+    */
+
+    $do = round( $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"], 8 );;
+
+    money_log( "{$data['users'][$uid]['first_name']} ($uid) с балансом {$data['users'][$uid]['balance']} dash" );
+    money_log( "отправляет {$sum} dash{$incur} пользователю {$data['users'][$to_uid]['first_name']} ($to_uid) с балансом {$data['users'][$to_uid]['balance']} dash" );
+    
+    $data["users"][ $uid ]["balance"]    = round( $data["users"][ $uid ]["balance"]    - $sum, 8 );
+    $data["users"][ $to_uid ]["balance"] = round( $data["users"][ $to_uid ]["balance"] + $sum, 8 );
+
+    $posle = round( $data["users"][ $uid ]["balance"] + $data["users"][ $to_uid ]["balance"], 8 );;
+
+    if ( $do === $posle ) {
+        save_data();
+        money_log( "Теперь у {$data['users'][$uid]['first_name']} ($uid) баланс {$data['users'][$uid]['balance']} dash" );
+        money_log( "А у {$data['users'][$to_uid]['first_name']} ($to_uid) баланс {$data['users'][$to_uid]['balance']} dash" );
+        money_log( "OK" );
+
+        // В общий чат
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Отправлено {$sum} dash {$incur} от {$data['users'][$uid]['first_name']} к {$data['users'][$to_uid]['first_name']}",
+            ]
+        );
+
+        // Юзеру которому зачислено
+        $balance = balance_format( $data["users"][ $to_uid ]["balance"] );
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $data["users"][$to_uid]["chat"],
+                "text"    => "{$data['users'][$uid]['first_name']} прислал вам {$sum} dash{$incur}.\n$balance",
+            ]
+        );
+
+        // Юзеру который отправил
+        $balance = balance_format( $data["users"][ $uid ]["balance"] );
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $data["users"][$uid]["chat"],
+                "text"    => "Вы отправили {$data['users'][$to_uid]['first_name']} {$sum} dash{$incur}.\n$balance",
+            ]
+        );
+    } else {
+        money_log( "--- Не отправлено. Беда с округлениями. ---" );
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Не отправлено. Беда с округлениями.",
+            ]
+        );
+    }
+
+}
+
+
+function dashsend() {
+    global $args, $input, $data, $uid, $uname, $chat_id, $currencies;
+
+    // Количество аргументов
+    if ( count( $args ) < 4 ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Неверное число аргументов.",
+            ]
+        );
+        exit;
+    }
+
+    // Распознаем сумму
+    if ( ! preg_match( "/^(\d+(\.\d+)?)\$/", $args[1] ) ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Не распознана сумма: {$args[1]}",
+            ]
+        );
+        exit;
+    }
+
+    $sum  = $args[1];
+    $cur  = $args[2];
+    $addr = $args[3];
+
+    if ( ! in_array( $cur, $currencies ) ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Не поддерживаемая валюта: {$cur}",
+            ]
+        );
+        exit;
+    }
+
+    update_curr();
+
+    // Переводим в деши
+    $sum = round( $sum / $data["curr"][ $cur ]["price"], 8 );
+    if ( $cur !== "dash" && $cur !== "mdash" ) {
+        $incur = " (" . round( $sum * $data["curr"][ $cur ]["price"], 2) . " {$cur})";
+    } else {
+        $incur = "";
+    }
+
+    // Проверка счета
+    if ( $data["users"][ $uid ]["balance"] < $sum ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Не хватает средств на балансе.",
+            ]
+        );
+        exit;
+    }
+
+    if ( ! preg_match( "/[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{25,34}/", $addr ) ) {
+        $r = telegram(
+            "sendMessage",
+            [
+                "chat_id" => $chat_id,
+                "reply_to_message_id" => $input["message"]["message_id"],
+                "text"    => "Это не похоже на адрес",
+            ]
+        );
+        exit;
+    }
+
+    // Отправляем
+    $send = rpc( [
+        "method" => "sendtoaddress",
+        "params" => [
+            $addr, $sum, "", "", true, true
+        ]
+    ] );
+
+    if ( $send["result"] !== NULL ) {
+        $tx = rpc( [ "method" => "gettransaction", "params" => [ $send["result"] ] ] );
+        if ( $tx["result"] === NULL ) {
+            debug_log( $tx, '$tx = ' );
+            $msg = "Ошибка отправки. См. debug.log";
+            money_log( $msg );
+        } else {
+            money_log( "У {$uname} ({$uid}) баланс {$data['users'][$uid]['balance']} dash" );
+
+            $sum = round( $tx["result"]["amount"] + $tx["result"]["fee"], 8 );
+            $data["users"][ $uid ]["balance"] = round( $data["users"][ $uid ]["balance"] + $sum, 8 );
+
+            save_data();
+
+            $msg = "Отправлено";
+            money_log( "{$uname} ({$uid}): Отправлено /dashsend {$sum} dash {$addr}" );
+            money_log( "У {$uname} ({$uid}) баланс {$data['users'][$uid]['balance']} dash" );
+            money_log( $msg );
+        }
+    } else {
+        $msg = "RPC-ошибка";
+        money_log( "{$uname} ({$uid}) RPC-ошибка /dashsend {$sum} {$cur} {$addr}" );
+    }
+
+    $r = telegram(
+        "sendMessage",
+        [
+            "chat_id"             => $chat_id,
+            "reply_to_message_id" => $input["message"]["message_id"],
+            "text"                => $msg,
+        ]
+    );
+
+    // Юзеру который отправил
+    $balance = balance_format( $data["users"][ $uid ]["balance"] );
+    $r = telegram(
+        "sendMessage",
+        [
+            "chat_id" => $data["users"][$uid]["chat"],
+            "text"    => $balance,
+        ]
+    );
+
+}
